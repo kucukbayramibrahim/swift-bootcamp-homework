@@ -2,8 +2,7 @@ import SwiftUI
 
 struct ProfileView: View {
     
-    // Örnek kullanıcı bilgileri
-    let fullName: String = "Ibrahim Kucukbayram"
+    let fullName: String = "İbrahim Küçükbayram"
     let shortBio: String = "iOS Developer & Swift Learner"
     let followers: Int = 120
     let following: Int = 75
