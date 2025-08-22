@@ -3,7 +3,7 @@ import Foundation
 // 📝 Homework 1.1 – Variables and Data Types
 // Personal Info Card
 
-let fullName: String = "Ibrahim Kucukbayram"
+let fullName: String = "İbrahim Küçükbayram"
 let age: Int = 26
 let height: Double = 1.70
 let isStudent: Bool = false
