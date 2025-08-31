@@ -1,0 +1,335 @@
+import SwiftUI
+
+// MARK: - Data Model
+struct ListItem: Identifiable {
+    let id = UUID()
+    var title: String
+    var description: String
+    var isCompleted: Bool
+    var sfSymbol: String
+    
+    static let sampleItems: [ListItem] = [
+        ListItem(title: "SwiftUI Öğren", description: "Modern iOS geliştirme framework'ünü öğren", isCompleted: false, sfSymbol: "swift"),
+        ListItem(title: "Kod Yaz", description: "Günlük kod yazma alıştırması yap", isCompleted: false, sfSymbol: "laptop"),
+        ListItem(title: "GitHub Güncellemesi", description: "Yeni projeleri GitHub'a yükle", isCompleted: false, sfSymbol: "doc.text"),
+        ListItem(title: "Kitap Oku", description: "iOS geliştirme kitabından bir bölüm oku", isCompleted: false, sfSymbol: "book"),
+        ListItem(title: "Proje Planla", description: "Yeni uygulama fikirlerini planla", isCompleted: false, sfSymbol: "calendar"),
+        ListItem(title: "Uygulama Tasarla", description: "UI/UX tasarım çalışması yap", isCompleted: true, sfSymbol: "paintbrush"),
+        ListItem(title: "Bug Fix", description: "Önceki projede bulunan hataları düzelt", isCompleted: true, sfSymbol: "wrench"),
+        ListItem(title: "Dokumentasyon", description: "Kod yorumlarını tamamla", isCompleted: true, sfSymbol: "doc.circle"),
+        ListItem(title: "Test Yaz", description: "Unit testleri oluştur", isCompleted: true, sfSymbol: "checkmark.seal"),
+        ListItem(title: "Code Review", description: "Takım arkadaşlarının kodlarını incele", isCompleted: true, sfSymbol: "magnifyingglass")
+    ]
+}
+
+// MARK: - Detail View
+struct DetailView: View {
+    let item: ListItem
+    @State private var randomColor = Color.blue
+    
+    var body: some View {
+        VStack(spacing: 30) {
+            // SF Symbol
+            Image(systemName: item.sfSymbol)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 100, height: 100)
+                .foregroundColor(randomColor)
+                .padding()
+                .background(randomColor.opacity(0.1))
+                .clipShape(Circle())
+            
+            // Başlık
+            Text(item.title)
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .multilineTextAlignment(.center)
+                .foregroundColor(randomColor)
+            
+            // Açıklama
+            Text(item.description)
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            // Durum
+            HStack {
+                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(item.isCompleted ? .green : .orange)
+                Text(item.isCompleted ? "Tamamlandı" : "Beklemede")
+                    .fontWeight(.medium)
+                    .foregroundColor(item.isCompleted ? .green : .orange)
+            }
+            .font(.headline)
+            .padding()
+            .background(Color(UIColor.systemGray6))
+            .cornerRadius(15)
+            
+            Spacer()
+        }
+        .padding()
+        .navigationTitle("Detay")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            // Rastgele renk seçimi
+            let colors: [Color] = [.blue, .purple, .green, .orange, .pink, .red, .indigo, .cyan]
+            randomColor = colors.randomElement() ?? .blue
+        }
+    }
+}
+
+// MARK: - Add Item View
+struct AddItemView: View {
+    @Binding var items: [ListItem]
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var description = ""
+    
+    private let sfSymbols = ["star", "heart", "house", "car", "airplane", "camera", "phone", "music.note", "gamecontroller", "tv", "laptopcomputer", "book", "pencil", "paintbrush", "hammer"]
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("Yeni Görev") {
+                    TextField("Başlık", text: $title)
+                    TextField("Açıklama", text: $description)
+                }
+            }
+            .navigationTitle("Yeni Öğe")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("İptal") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Ekle") {
+                        addItem()
+                    }
+                    .disabled(title.isEmpty)
+                }
+            }
+        }
+    }
+    
+    private func addItem() {
+        let newItem = ListItem(
+            title: title,
+            description: description.isEmpty ? "Açıklama eklenmemiş" : description,
+            isCompleted: false,
+            sfSymbol: sfSymbols.randomElement() ?? "circle"
+        )
+        items.append(newItem)
+        dismiss()
+    }
+}
+
+// MARK: - Main View
+struct MasterListApp: View {
+    @State private var items = ListItem.sampleItems
+    @State private var showingAddItem = false
+    @State private var themeColor = Color.blue
+    
+    var pendingItems: [ListItem] {
+        items.filter { !$0.isCompleted }
+    }
+    
+    var completedItems: [ListItem] {
+        items.filter { $0.isCompleted }
+    }
+    
+    var body: some View {
+        NavigationView {
+            List {
+                // Tamamlanacaklar Section
+                if !pendingItems.isEmpty {
+                    Section("Tamamlanacaklar (\(pendingItems.count))") {
+                        ForEach(pendingItems) { item in
+                            NavigationLink(destination: DetailView(item: item)) {
+                                ListRowView(item: item, themeColor: themeColor)
+                            }
+                        }
+                        .onDelete { indexSet in
+                            deleteItems(from: pendingItems, at: indexSet)
+                        }
+                    }
+                }
+                
+                // Tamamlananlar Section
+                if !completedItems.isEmpty {
+                    Section("Tamamlananlar (\(completedItems.count))") {
+                        ForEach(completedItems) { item in
+                            NavigationLink(destination: DetailView(item: item)) {
+                                ListRowView(item: item, themeColor: themeColor)
+                            }
+                        }
+                        .onDelete { indexSet in
+                            deleteItems(from: completedItems, at: indexSet)
+                        }
+                    }
+                }
+                
+                // Boş liste durumu
+                if items.isEmpty {
+                    Section {
+                        VStack(spacing: 15) {
+                            Image(systemName: "list.bullet.clipboard")
+                                .font(.system(size: 50))
+                                .foregroundColor(.gray)
+                            
+                            Text("Henüz görev yok")
+                                .font(.headline)
+                                .foregroundColor(.gray)
+                            
+                            Text("Yeni bir görev eklemek için '+' butonunu kullanın")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                    }
+                }
+            }
+            .navigationTitle("MasterListApp")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showingAddItem = true
+                    }) {
+                        Image(systemName: "plus")
+                            .font(.headline)
+                            .foregroundColor(themeColor)
+                    }
+                }
+            }
+            .onAppear {
+                // Rastgele renk teması
+                let themes: [Color] = [.blue, .purple, .green, .orange, .pink, .red, .indigo]
+                themeColor = themes.randomElement() ?? .blue
+            }
+            .sheet(isPresented: $showingAddItem) {
+                AddItemView(items: $items)
+            }
+        }
+    }
+    
+    private func deleteItems(from sourceItems: [ListItem], at offsets: IndexSet) {
+        for index in offsets {
+            let itemToDelete = sourceItems[index]
+            items.removeAll { $0.id == itemToDelete.id }
+        }
+    }
+}
+
+// MARK: - List Row View
+struct ListRowView: View {
+    let item: ListItem
+    let themeColor: Color
+    
+    var body: some View {
+        HStack(spacing: 15) {
+            // SF Symbol
+            Image(systemName: item.sfSymbol)
+                .font(.title2)
+                .foregroundColor(themeColor)
+                .frame(width: 30)
+            
+            // İçerik
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.title)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Text(item.description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+            
+            Spacer()
+            
+            // Durum ikonu
+            Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                .foregroundColor(item.isCompleted ? .green : .orange)
+                .font(.title3)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Alternative ScrollView Implementation
+struct AlternativeListView: View {
+    @State private var items = ListItem.sampleItems
+    @State private var themeColor = Color.blue
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    ForEach(items) { item in
+                        NavigationLink(destination: DetailView(item: item)) {
+                            AlternativeRowView(item: item, themeColor: themeColor)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Alternative View")
+            .onAppear {
+                let themes: [Color] = [.blue, .purple, .green, .orange, .pink, .red, .indigo]
+                themeColor = themes.randomElement() ?? .blue
+            }
+        }
+    }
+}
+
+struct AlternativeRowView: View {
+    let item: ListItem
+    let themeColor: Color
+    
+    var body: some View {
+        HStack(spacing: 15) {
+            Image(systemName: item.sfSymbol)
+                .font(.title)
+                .foregroundColor(themeColor)
+                .frame(width: 40, height: 40)
+                .background(themeColor.opacity(0.1))
+                .clipShape(Circle())
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.title)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Text(item.description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(3)
+            }
+            
+            Spacer()
+            
+            VStack {
+                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(item.isCompleted ? .green : .orange)
+                    .font(.title2)
+            }
+        }
+        .padding()
+        .background(Color(UIColor.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+    }
+}
+
+// MARK: - Preview
+struct MasterListApp_Previews: PreviewProvider {
+    static var previews: some View {
+        MasterListApp()
+    }
+}
