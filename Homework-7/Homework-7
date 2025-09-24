@@ -1,0 +1,166 @@
+import SwiftUI
+
+// MARK: - Model
+struct Note: Identifiable, Codable {
+    let id: UUID
+    var title: String
+    var content: String
+    var date: Date
+    
+    init(id: UUID = UUID(), title: String, content: String, date: Date = Date()) {
+        self.id = id
+        self.title = title
+        self.content = content
+        self.date = date
+    }
+}
+
+// MARK: - ViewModel
+class NoteViewModel: ObservableObject {
+    @Published var notes: [Note] = [] {
+        didSet {
+            saveNotes()
+        }
+    }
+    
+    private let userDefaultsKey = "savedNotes"
+    
+    init() {
+        loadNotes()
+    }
+    
+    func addNote(title: String, content: String) {
+        let newNote = Note(title: title, content: content)
+        notes.append(newNote)
+    }
+    
+    func deleteNote(_ note: Note) {
+        notes.removeAll { $0.id == note.id }
+    }
+    
+    // MARK: - Persistence
+    private func saveNotes() {
+        if let encoded = try? JSONEncoder().encode(notes) {
+            UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
+        }
+    }
+    
+    private func loadNotes() {
+        if let savedData = UserDefaults.standard.data(forKey: userDefaultsKey),
+           let decoded = try? JSONDecoder().decode([Note].self, from: savedData) {
+            self.notes = decoded
+        }
+    }
+}
+
+// MARK: - Views
+
+struct NoteListView: View {
+    @StateObject private var viewModel = NoteViewModel()
+    @State private var showingAddNote = false
+    
+    var body: some View {
+        NavigationView {
+            List(viewModel.notes) { note in
+                NavigationLink(destination: NoteDetailView(note: note, viewModel: viewModel)) {
+                    VStack(alignment: .leading) {
+                        Text(note.title)
+                            .font(.headline)
+                        Text(note.date, style: .date)
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+            .navigationTitle("Notlarım")
+            .toolbar {
+                Button {
+                    showingAddNote = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+            .sheet(isPresented: $showingAddNote) {
+                AddNoteView(viewModel: viewModel)
+            }
+        }
+    }
+}
+
+struct AddNoteView: View {
+    @Environment(\.dismiss) var dismiss
+    @ObservedObject var viewModel: NoteViewModel
+    
+    @State private var title: String = ""
+    @State private var content: String = ""
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                TextField("Başlık", text: $title)
+                TextEditor(text: $content)
+                    .frame(height: 200)
+            }
+            .navigationTitle("Yeni Not")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Vazgeç") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Kaydet") {
+                        viewModel.addNote(title: title, content: content)
+                        dismiss()
+                    }
+                    .disabled(title.isEmpty || content.isEmpty)
+                }
+            }
+        }
+    }
+}
+
+struct NoteDetailView: View {
+    let note: Note
+    @ObservedObject var viewModel: NoteViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(note.title)
+                .font(.largeTitle)
+                .bold()
+            Text(note.date, style: .date)
+                .font(.subheadline)
+                .foregroundColor(.gray)
+            
+            Divider()
+            
+            Text(note.content)
+                .font(.body)
+            
+            Spacer()
+            
+            Button(role: .destructive) {
+                viewModel.deleteNote(note)
+                dismiss()
+            } label: {
+                Text("Notu Sil")
+                    .bold()
+            }
+            .padding()
+        }
+        .padding()
+        .navigationTitle("Not Detayı")
+    }
+}
+
+// MARK: - App Entry
+@main
+struct NotesApp: App {
+    var body: some Scene {
+        WindowGroup {
+            NoteListView()
+        }
+    }
+}
