@@ -1,0 +1,207 @@
+import SwiftUI
+import CoreData
+
+// MARK: - Core Data Persistence
+class PersistenceController {
+    static let shared = PersistenceController()
+    
+    let container: NSPersistentContainer
+    
+    init() {
+        container = NSPersistentContainer(name: "NotesModel")
+        container.loadPersistentStores { _, error in
+            if let error = error {
+                fatalError("Core Data yüklenemedi: \(error)")
+            }
+        }
+    }
+}
+
+// MARK: - Core Data Note Entity Extension
+extension Note {
+    static func create(in context: NSManagedObjectContext, title: String, content: String) {
+        let newNote = Note(context: context)
+        newNote.id = UUID()
+        newNote.title = title
+        newNote.content = content
+        newNote.date = Date()
+        
+        do {
+            try context.save()
+        } catch {
+            print("Kaydedilemedi: \(error)")
+        }
+    }
+    
+    func update(title: String, content: String, in context: NSManagedObjectContext) {
+        self.title = title
+        self.content = content
+        self.date = Date()
+        
+        do {
+            try context.save()
+        } catch {
+            print("Güncellenemedi: \(error)")
+        }
+    }
+    
+    func delete(in context: NSManagedObjectContext) {
+        context.delete(self)
+        do {
+            try context.save()
+        } catch {
+            print("Silinemedi: \(error)")
+        }
+    }
+}
+
+// MARK: - Views
+
+// Ana Liste
+struct NoteListView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \Note.date, ascending: false)],
+        animation: .default
+    )
+    private var notes: FetchedResults<Note>
+    
+    @State private var showingAddNote = false
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(notes) { note in
+                    NavigationLink(destination: NoteDetailView(note: note)) {
+                        VStack(alignment: .leading) {
+                            Text(note.title ?? "Başlıksız")
+                                .font(.headline)
+                            if let date = note.date {
+                                Text(date, style: .date)
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+                }
+                .onDelete(perform: deleteNotes)
+            }
+            .navigationTitle("Notlarım")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showingAddNote = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingAddNote) {
+                AddNoteView()
+            }
+        }
+    }
+    
+    private func deleteNotes(offsets: IndexSet) {
+        withAnimation {
+            offsets.map { notes[$0] }.forEach { $0.delete(in: viewContext) }
+        }
+    }
+}
+
+// Yeni Not Ekleme
+struct AddNoteView: View {
+    @Environment(\.dismiss) var dismiss
+    @Environment(\.managedObjectContext) private var viewContext
+    
+    @State private var title = ""
+    @State private var content = ""
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                TextField("Başlık", text: $title)
+                TextEditor(text: $content)
+                    .frame(height: 200)
+            }
+            .navigationTitle("Yeni Not")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Vazgeç") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Kaydet") {
+                        Note.create(in: viewContext, title: title, content: content)
+                        dismiss()
+                    }
+                    .disabled(title.isEmpty || content.isEmpty)
+                }
+            }
+        }
+    }
+}
+
+// Not Detayı & Düzenleme
+struct NoteDetailView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+    @ObservedObject var note: Note
+    
+    @State private var editing = false
+    @State private var title = ""
+    @State private var content = ""
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if editing {
+                TextField("Başlık", text: $title)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                TextEditor(text: $content)
+                    .frame(height: 300)
+                Button("Kaydet") {
+                    note.update(title: title, content: content, in: viewContext)
+                    editing = false
+                }
+                .disabled(title.isEmpty || content.isEmpty)
+            } else {
+                Text(note.title ?? "Başlıksız")
+                    .font(.largeTitle)
+                    .bold()
+                if let date = note.date {
+                    Text(date, style: .date)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+                Divider()
+                Text(note.content ?? "")
+                    .font(.body)
+            }
+            Spacer()
+        }
+        .padding()
+        .navigationTitle("Not Detayı")
+        .toolbar {
+            Button(editing ? "İptal" : "Düzenle") {
+                if editing {
+                    editing = false
+                } else {
+                    title = note.title ?? ""
+                    content = note.content ?? ""
+                    editing = true
+                }
+            }
+        }
+    }
+}
+
+// MARK: - App Entry
+@main
+struct CoreDataNotesApp: App {
+    let persistenceController = PersistenceController.shared
+    
+    var body: some Scene {
+        WindowGroup {
+            NoteListView()
+                .environment(\.managedObjectContext, persistenceController.container.viewContext)
+        }
+    }
+}
