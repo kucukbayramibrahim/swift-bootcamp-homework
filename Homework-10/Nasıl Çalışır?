@@ -1,0 +1,15 @@
+Açıklamalar / Nasıl çalışır
+
+Paging: CharacterListViewModel page sayacını tutar; her fetchNextIfNeeded() çağrısında bir sonraki sayfayı ister. Listede son öğelere yaklaşıldığında (isLastItem) otomatik yükleme tetiklenir. Ayrıca kullanıcı "Daha Fazla Yükle" butonuyla da tetikleyebilir.
+
+Search: Üstteki textfield ile name parametresine göre sunucu taraflı filtreleme yapılır; arama yapınca resetAndFetch() çağrısı ile sayfa 1'e dönülür.
+
+Pull-to-refresh: .refreshable kullanıldı.
+
+Favorites: FavoritesStore UserDefaults içinde [Int] olarak saklar. FavoritesView favorileri gösterir. Detaydan ekleyip çıkarabilirsiniz.
+
+Image caching: ImageLoader URLCache kullanır; AsyncImage yerine manuel loader ile cache kontrolü sağlandı.
+
+Error handling: vm.errorMessage ile hata gösterimi yapılıyor.
+
+Unit tests: Mock network servis ile JSON decode & ViewModel test örnekleri gösterildi.
