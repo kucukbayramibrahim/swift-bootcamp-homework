@@ -1,0 +1,62 @@
+import XCTest
+@testable import YourModuleName
+
+final class MockNetworkService: NetworkServiceProtocol {
+    var dataToReturn: Data?
+    var errorToThrow: Error?
+    
+    func fetchCharacters(page: Int, name: String?) async throws -> RMCharacterListResponse {
+        if let e = errorToThrow { throw e }
+        guard let data = dataToReturn else { throw URLError(.badServerResponse) }
+        return try JSONDecoder().decode(RMCharacterListResponse.self, from: data)
+    }
+    
+    func fetchData(from url: URL) async throws -> Data {
+        if let e = errorToThrow { throw e }
+        guard let data = dataToReturn else { throw URLError(.badServerResponse) }
+        return data
+    }
+}
+
+final class APIExplorerTests: XCTestCase {
+    func testDecodingSampleListJSON() throws {
+        let json = """
+        {
+          "info": { "count": 1, "pages": 1, "next": null, "prev": null },
+          "results": [
+            {
+              "id": 1,
+              "name": "Rick Sanchez",
+              "status": "Alive",
+              "species": "Human",
+              "type": "",
+              "gender": "Male",
+              "origin": { "name": "Earth", "url": "" },
+              "location": { "name": "Earth", "url": "" },
+              "image": "https://rickandmortyapi.com/api/character/avatar/1.jpeg",
+              "episode": [],
+              "url": "",
+              "created": ""
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+        
+        let decoded = try JSONDecoder().decode(RMCharacterListResponse.self, from: json)
+        XCTAssertEqual(decoded.info.count, 1)
+        XCTAssertEqual(decoded.results.first?.name, "Rick Sanchez")
+    }
+    
+    func testViewModelUsesNetworkService() async throws {
+        let mock = MockNetworkService()
+        let sample = """
+        {"info":{"count":1,"pages":1,"next":null,"prev":null},"results":[{"id":2,"name":"Morty","status":"Alive","species":"Human","type":"","gender":"Male","origin":{"name":"Earth","url":""},"location":{"name":"Earth","url":""},"image":"","episode":[],"url":"","created":""}]}
+        """.data(using: .utf8)!
+        mock.dataToReturn = sample
+        
+        let vm = CharacterListViewModel(service: mock)
+        await vm.fetchNextIfNeeded()
+        XCTAssertFalse(vm.characters.isEmpty)
+        XCTAssertEqual(vm.characters.first?.name, "Morty")
+    }
+}
