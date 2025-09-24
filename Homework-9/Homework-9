@@ -1,0 +1,69 @@
+import SwiftUI
+
+// MARK: - Model
+struct Post: Codable, Identifiable {
+    let id: Int
+    let title: String
+    let body: String
+}
+
+// MARK: - ViewModel
+@MainActor
+class PostViewModel: ObservableObject {
+    @Published var posts: [Post] = []
+    @Published var errorMessage: String? = nil
+    
+    func fetchPosts() async {
+        guard let url = URL(string: "https://jsonplaceholder.typicode.com/posts") else {
+            errorMessage = "Geçersiz URL"
+            return
+        }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let decoded = try JSONDecoder().decode([Post].self, from: data)
+            posts = decoded
+        } catch {
+            errorMessage = "Bir hata oluştu: \(error.localizedDescription)"
+        }
+    }
+}
+
+// MARK: - View
+struct ContentView: View {
+    @StateObject private var viewModel = PostViewModel()
+    
+    var body: some View {
+        NavigationView {
+            Group {
+                if let error = viewModel.errorMessage {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .padding()
+                } else if viewModel.posts.isEmpty {
+                    ProgressView("Yükleniyor...")
+                } else {
+                    List(viewModel.posts) { post in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(post.title.capitalized)
+                                .font(.headline)
+                            Text(post.body)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            .navigationTitle("Gönderiler")
+        }
+        .task {
+            await viewModel.fetchPosts()
+        }
+    }
+}
+
+// MARK: - Preview
+#Preview {
+    ContentView()
+}
