@@ -1,0 +1,435 @@
+import SwiftUI
+
+// MARK: - MODEL KATMANI
+struct Task: Identifiable, Codable {
+    let id = UUID()
+    var title: String
+    var isCompleted: Bool
+    var createdDate: Date
+    
+    init(title: String, isCompleted: Bool = false) {
+        self.title = title
+        self.isCompleted = isCompleted
+        self.createdDate = Date()
+    }
+}
+
+// MARK: - VIEWMODEL KATMANI
+class TaskViewModel: ObservableObject {
+    @Published var tasks: [Task] = []
+    @Published var newTaskTitle: String = ""
+    
+    // Başlangıç verileri
+    init() {
+        loadSampleTasks()
+    }
+    
+    // MARK: - Görev İşlemleri
+    
+    // Yeni görev ekleme
+    func addTask() {
+        guard !newTaskTitle.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        
+        let newTask = Task(title: newTaskTitle.trimmingCharacters(in: .whitespaces))
+        tasks.append(newTask)
+        newTaskTitle = ""
+    }
+    
+    // Görev silme
+    func deleteTask(at offsets: IndexSet) {
+        tasks.remove(atOffsets: offsets)
+    }
+    
+    // Görev silme (ID ile)
+    func deleteTask(with id: UUID) {
+        tasks.removeAll { $0.id == id }
+    }
+    
+    // Görev durumunu değiştirme
+    func toggleTaskCompletion(task: Task) {
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[index].isCompleted.toggle()
+        }
+    }
+    
+    // Görev başlığını güncelleme
+    func updateTaskTitle(task: Task, newTitle: String) {
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[index].title = newTitle
+        }
+    }
+    
+    // MARK: - Hesaplanan Özellikler
+    var activeTasks: [Task] {
+        tasks.filter { !$0.isCompleted }
+    }
+    
+    var completedTasks: [Task] {
+        tasks.filter { $0.isCompleted }
+    }
+    
+    var totalTasksCount: Int {
+        tasks.count
+    }
+    
+    var completedTasksCount: Int {
+        completedTasks.count
+    }
+    
+    var activeTasksCount: Int {
+        activeTasks.count
+    }
+    
+    // MARK: - Örnek Veri Yükleme
+    private func loadSampleTasks() {
+        let sampleTasks = [
+            Task(title: "SwiftUI öğren", isCompleted: false),
+            Task(title: "MVVM mimarisini uygula", isCompleted: false),
+            Task(title: "Kod dokümantasyonu yaz", isCompleted: true),
+            Task(title: "Unit testleri oluştur", isCompleted: false),
+            Task(title: "UI tasarımını tamamla", isCompleted: true),
+        ]
+        self.tasks = sampleTasks
+    }
+    
+    // Tüm görevleri temizle
+    func clearAllTasks() {
+        tasks.removeAll()
+    }
+    
+    // Tamamlanan görevleri temizle
+    func clearCompletedTasks() {
+        tasks.removeAll { $0.isCompleted }
+    }
+}
+
+// MARK: - VIEW KATMANI
+
+// Ana Görünüm
+struct TaskManagementView: View {
+    @StateObject private var viewModel = TaskViewModel()
+    @State private var showingAlert = false
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // İstatistik Kartları
+                StatisticsView(viewModel: viewModel)
+                
+                // Görev Ekleme Alanı
+                AddTaskView(viewModel: viewModel)
+                
+                // Görev Listesi
+                TaskListView(viewModel: viewModel)
+            }
+            .navigationTitle("Görev Yöneticisi")
+            .toolbar {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button("Tamamlananları Temizle") {
+                            viewModel.clearCompletedTasks()
+                        }
+                        .disabled(viewModel.completedTasksCount == 0)
+                        
+                        Button("Tümünü Temizle", role: .destructive) {
+                            showingAlert = true
+                        }
+                        .disabled(viewModel.totalTasksCount == 0)
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+            }
+            .alert("Tüm Görevleri Sil", isPresented: $showingAlert) {
+                Button("İptal", role: .cancel) { }
+                Button("Sil", role: .destructive) {
+                    viewModel.clearAllTasks()
+                }
+            } message: {
+                Text("Tüm görevler kalıcı olarak silinecek. Bu işlem geri alınamaz.")
+            }
+        }
+    }
+}
+
+// İstatistik Görünümü
+struct StatisticsView: View {
+    @ObservedObject var viewModel: TaskViewModel
+    
+    var body: some View {
+        HStack(spacing: 15) {
+            StatCard(
+                title: "Toplam",
+                count: viewModel.totalTasksCount,
+                color: .blue,
+                icon: "list.bullet"
+            )
+            
+            StatCard(
+                title: "Aktif",
+                count: viewModel.activeTasksCount,
+                color: .orange,
+                icon: "clock"
+            )
+            
+            StatCard(
+                title: "Tamamlanan",
+                count: viewModel.completedTasksCount,
+                color: .green,
+                icon: "checkmark.circle"
+            )
+        }
+        .padding()
+        .background(Color(UIColor.systemGray6))
+    }
+}
+
+// İstatistik Kartı
+struct StatCard: View {
+    let title: String
+    let count: Int
+    let color: Color
+    let icon: String
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(color)
+            
+            Text("\(count)")
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(color)
+            
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+    }
+}
+
+// Görev Ekleme Görünümü
+struct AddTaskView: View {
+    @ObservedObject var viewModel: TaskViewModel
+    @FocusState private var isTextFieldFocused: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            TextField("Yeni görev ekle...", text: $viewModel.newTaskTitle)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .focused($isTextFieldFocused)
+                .onSubmit {
+                    viewModel.addTask()
+                }
+            
+            Button(action: {
+                viewModel.addTask()
+                isTextFieldFocused = false
+            }) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.title2)
+                    .foregroundColor(viewModel.newTaskTitle.trimmingCharacters(in: .whitespaces).isEmpty ? .gray : .blue)
+            }
+            .disabled(viewModel.newTaskTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        .padding()
+        .background(Color.white)
+    }
+}
+
+// Görev Listesi Görünümü
+struct TaskListView: View {
+    @ObservedObject var viewModel: TaskViewModel
+    
+    var body: some View {
+        List {
+            // Aktif Görevler
+            if !viewModel.activeTasks.isEmpty {
+                Section("Aktif Görevler (\(viewModel.activeTasksCount))") {
+                    ForEach(viewModel.activeTasks) { task in
+                        TaskRowView(task: task, viewModel: viewModel)
+                    }
+                    .onDelete { indexSet in
+                        deleteActiveTasks(at: indexSet)
+                    }
+                }
+            }
+            
+            // Tamamlanan Görevler
+            if !viewModel.completedTasks.isEmpty {
+                Section("Tamamlanan Görevler (\(viewModel.completedTasksCount))") {
+                    ForEach(viewModel.completedTasks) { task in
+                        TaskRowView(task: task, viewModel: viewModel)
+                    }
+                    .onDelete { indexSet in
+                        deleteCompletedTasks(at: indexSet)
+                    }
+                }
+            }
+            
+            // Boş Durum
+            if viewModel.tasks.isEmpty {
+                EmptyStateView()
+            }
+        }
+        .listStyle(PlainListStyle())
+    }
+    
+    // Aktif görevleri silme
+    private func deleteActiveTasks(at offsets: IndexSet) {
+        let tasksToDelete = offsets.map { viewModel.activeTasks[$0] }
+        tasksToDelete.forEach { task in
+            viewModel.deleteTask(with: task.id)
+        }
+    }
+    
+    // Tamamlanan görevleri silme
+    private func deleteCompletedTasks(at offsets: IndexSet) {
+        let tasksToDelete = offsets.map { viewModel.completedTasks[$0] }
+        tasksToDelete.forEach { task in
+            viewModel.deleteTask(with: task.id)
+        }
+    }
+}
+
+// Görev Satır Görünümü
+struct TaskRowView: View {
+    let task: Task
+    @ObservedObject var viewModel: TaskViewModel
+    @State private var isEditing = false
+    @State private var editedTitle = ""
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Tamamlama Butonu
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    viewModel.toggleTaskCompletion(task: task)
+                }
+            }) {
+                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.title2)
+                    .foregroundColor(task.isCompleted ? .green : .gray)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Görev İçeriği
+            if isEditing {
+                TextField("Görev başlığı", text: $editedTitle)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .onSubmit {
+                        saveEdit()
+                    }
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(task.title)
+                        .font(.body)
+                        .strikethrough(task.isCompleted)
+                        .foregroundColor(task.isCompleted ? .secondary : .primary)
+                    
+                    Text(formatDate(task.createdDate))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            // Düzenleme Butonu
+            if !isEditing {
+                Button(action: {
+                    editedTitle = task.title
+                    isEditing = true
+                }) {
+                    Image(systemName: "pencil")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                }
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                HStack(spacing: 8) {
+                    Button("İptal") {
+                        isEditing = false
+                    }
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    
+                    Button("Kaydet") {
+                        saveEdit()
+                    }
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            // Çift tıklama ile düzenleme
+            if !isEditing {
+                editedTitle = task.title
+                isEditing = true
+            }
+        }
+    }
+    
+    private func saveEdit() {
+        if !editedTitle.trimmingCharacters(in: .whitespaces).isEmpty {
+            viewModel.updateTaskTitle(task: task, newTitle: editedTitle.trimmingCharacters(in: .whitespaces))
+        }
+        isEditing = false
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+}
+
+// Boş Durum Görünümü
+struct EmptyStateView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "tray")
+                .font(.system(size: 50))
+                .foregroundColor(.gray)
+            
+            Text("Henüz görev yok")
+                .font(.headline)
+                .foregroundColor(.gray)
+            
+            Text("Yukarıdaki alandan yeni görev ekleyebilirsiniz")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 50)
+        .listRowSeparator(.hidden)
+    }
+}
+
+// MARK: - APP ENTRY POINT
+@main
+struct TaskManagementApp: App {
+    var body: some Scene {
+        WindowGroup {
+            TaskManagementView()
+        }
+    }
+}
+
+// MARK: - PREVIEW
+struct TaskManagementView_Previews: PreviewProvider {
+    static var previews: some View {
+        TaskManagementView()
+    }
+}
